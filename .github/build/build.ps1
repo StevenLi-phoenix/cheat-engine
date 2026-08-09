@@ -157,3 +157,7 @@ if ($failedRequired.Count -gt 0) {
 }
 
 Write-Host 'All required targets built.' -ForegroundColor Green
+
+# GitHub's pwsh wrapper appends `exit $LASTEXITCODE`. A failed optional target would
+# otherwise leave a non-zero code behind and sink a build that met its requirements.
+exit 0

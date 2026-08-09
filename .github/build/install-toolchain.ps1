@@ -203,17 +203,22 @@ Write-Info "lazbuild: $lazbuild"
 # lazbuild resolves a project's package dependencies through registered package links.
 # A source tree has none registered, so add the ones Cheat Engine asks for.
 Write-Step 'Registering package links'
+# Paths verified against the lazarus_2_2_2 tag by matching each <Name Value="..."/>
+# in the .lpk files, not by guessing from directory names - FCL and LCL in particular
+# do not live where you would expect.
 $packageLinks = @(
-    'components\lazutils\lazutils.lpk'
-    'components\codetools\codetools.lpk'
+    'components\lazutils\lazutils.lpk'                              # LazUtils
+    'components\codetools\codetools.lpk'                            # CodeTools
     'components\buildintf\buildintf.lpk'
     'components\debuggerintf\debuggerintf.lpk'
-    'components\ideintf\ideintf.lpk'
-    'components\lazcontrols\lazcontrols.lpk'
-    'components\synedit\synedit.lpk'
-    'components\sqldb\sqldblaz.lpk'
-    'components\virtualtreeview\laz.virtualtreeview_package.lpk'
-    'lcl\interfaces\lcl.lpk'
+    'components\ideintf\ideintf.lpk'                                # IDEIntf
+    'components\lazcontrols\lazcontrols.lpk'                        # LazControls
+    'components\synedit\synedit.lpk'                                # SynEdit
+    'components\sqldb\sqldblaz.lpk'                                 # SQLDBLaz
+    'components\virtualtreeview\laz.virtualtreeview_package.lpk'    # laz.virtualtreeview_package
+    'packager\registration\fcl.lpk'                                 # FCL
+    'lcl\lclbase.lpk'                                               # LCLBase
+    'lcl\interfaces\lcl.lpk'                                        # LCL
 )
 foreach ($relative in $packageLinks) {
     $lpk = Join-Path $LazarusDir $relative
@@ -232,3 +237,9 @@ if ($env:GITHUB_ENV) {
 }
 
 Write-Step 'Toolchain ready'
+
+# GitHub's pwsh wrapper appends `exit $LASTEXITCODE`, so whatever the last native
+# command returned becomes the step's result. lazbuild exits non-zero from
+# --add-package-link even when it works, which would fail a step that succeeded.
+# Reaching this line means every real error already threw.
+exit 0

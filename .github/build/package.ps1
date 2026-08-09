@@ -76,3 +76,4 @@ if ($env:GITHUB_OUTPUT) {
 }
 
 Write-Host '==> Package ready' -ForegroundColor Green
+exit 0
