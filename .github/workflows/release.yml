@@ -53,9 +53,10 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       version: ${{ needs.resolve.outputs.version }}
-      # Releases are worth the extra wall-clock: a clean full recompile removes any
-      # doubt about stale units leaking into a published binary.
-      build_all: true
+      # No --build-all: the runner is fresh, so there are no stale units to begin with,
+      # and each build mode writes to its own UnitOutputDirectory (the AVX2 mode uses
+      # lib\$(TargetCPU)-SSE4-AVX-$(TargetOS), the others lib\$(TargetCPU)-$(TargetOS)),
+      # so targets cannot contaminate each other within a run either.
 
   publish:
     name: Publish release

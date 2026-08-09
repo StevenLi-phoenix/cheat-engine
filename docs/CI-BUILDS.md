@@ -102,8 +102,7 @@ git tag ci-7.5-001
 git push origin ci-7.5-001
 ```
 
-`release.yml` calls `build.yml` (with a full recompile), then publishes a GitHub
-Release containing:
+`release.yml` calls `build.yml`, then publishes a GitHub Release containing:
 
 - `CheatEngine-<version>-portable-unsigned.zip`
 - `SHA256SUMS.txt` — covering the archive and every executable inside it
