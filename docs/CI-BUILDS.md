@@ -104,8 +104,10 @@ git push origin ci-7.5-001
 
 `release.yml` calls `build.yml`, then publishes a GitHub Release containing:
 
-- `CheatEngine-<version>-portable-unsigned.zip`
-- `SHA256SUMS.txt` — covering the archive and every executable inside it
+- `CheatEngine-<version>-portable-unsigned.zip` — extracts to a single
+  `CheatEngine-<version>/` folder
+- `SHA256SUMS.txt` — covering the archive and every executable inside it, with paths
+  relative to that folder and LF line endings so `sha256sum -c` works as printed
 
 `Actions → Release → Run workflow` does the same without pushing a tag.
 

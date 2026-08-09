@@ -101,15 +101,23 @@ jobs:
             echo
             echo "## Verifying the download"
             echo
+            echo "With just the zip, in the folder you downloaded it to:"
+            echo
+            echo '```'
+            echo "sha256sum -c --ignore-missing SHA256SUMS.txt"
+            echo '```'
+            echo
+            echo "After extracting, run it from the folder that contains the extracted directory to check every executable as well:"
+            echo
             echo '```'
             echo "sha256sum -c SHA256SUMS.txt"
             echo '```'
             echo
-            echo "\`SHA256SUMS.txt\` covers the archive and every executable inside it."
+            echo "On Windows, \`certutil -hashfile <file> SHA256\` prints a hash you can compare by eye."
             echo
             echo "## Contents"
             echo
-            echo "\`Cheat Engine.exe\` is the launcher; it picks the 32- or 64-bit build for you. Extract the whole archive and keep the folder together — the Lua scripts, language files and helper DLLs next to the executables are all required."
+            echo "The archive extracts to a single \`CheatEngine-${VERSION}\` folder. \`Cheat Engine.exe\` inside it is the launcher; it picks the 32- or 64-bit build for you. Keep the folder together — the Lua scripts, language files and helper DLLs next to the executables are all required."
             echo
             echo "---"
             echo
