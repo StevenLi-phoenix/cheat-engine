@@ -41,7 +41,8 @@ env:
   LAZARUS_VERSION: '2.2.2'
   FPC_VERSION: '3.2.2'
   LAZARUS_DIR: 'C:\lazarus'
-  INSTALLER_CACHE: 'C:\lazarus-installers'
+  FPC_DIR: 'C:\FPC'
+  TOOLCHAIN_CACHE: 'C:\toolchain-cache'
 
 jobs:
   build:
@@ -65,22 +66,23 @@ jobs:
           "value=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           Write-Host "version = $version"
 
-      # The two installers are ~257 MB combined and SourceForge is the only source,
-      # so caching them keeps the build off the critical path of a flaky mirror.
-      - name: Restore cached Lazarus installers
+      # ~180 MB of installers and source tarball. Caching them keeps every build off
+      # the critical path of an upstream host having a bad day.
+      - name: Restore cached toolchain downloads
         uses: actions/cache@v4
         with:
-          path: ${{ env.INSTALLER_CACHE }}
-          key: lazarus-installers-${{ env.LAZARUS_VERSION }}-fpc-${{ env.FPC_VERSION }}-win64
+          path: ${{ env.TOOLCHAIN_CACHE }}
+          key: toolchain-fpc-${{ env.FPC_VERSION }}-lazarus-${{ env.LAZARUS_VERSION }}
 
-      - name: Install Lazarus and the i386 cross compiler
+      - name: Install FPC and build lazbuild
         shell: pwsh
         run: |
-          .github\build\install-lazarus.ps1 `
-            -LazarusVersion '${{ env.LAZARUS_VERSION }}' `
+          .github\build\install-toolchain.ps1 `
             -FpcVersion '${{ env.FPC_VERSION }}' `
-            -InstallDir '${{ env.LAZARUS_DIR }}' `
-            -CacheDir '${{ env.INSTALLER_CACHE }}'
+            -LazarusVersion '${{ env.LAZARUS_VERSION }}' `
+            -FpcDir '${{ env.FPC_DIR }}' `
+            -LazarusDir '${{ env.LAZARUS_DIR }}' `
+            -CacheDir '${{ env.TOOLCHAIN_CACHE }}'
 
       - name: Build
         shell: pwsh
@@ -106,6 +108,14 @@ jobs:
             dist/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30
+
+      - name: Collect the toolchain log
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build-logs | Out-Null
+          $log = Join-Path '${{ env.TOOLCHAIN_CACHE }}' 'make-lazbuild.log'
+          if (Test-Path -LiteralPath $log) { Copy-Item -LiteralPath $log -Destination build-logs\ }
 
       # Compiler transcripts are the only way to diagnose a failed target after the
       # runner is gone, so keep them whether or not the build succeeded.

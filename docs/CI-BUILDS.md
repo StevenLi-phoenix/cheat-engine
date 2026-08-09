@@ -50,10 +50,31 @@ projects in both architectures.
 
 ## Toolchain
 
-Lazarus 2.2.2 with FPC 3.2.2, installed from the SourceForge installers that the
-upstream README specifies, plus the `cross-i386-win32-win64` add-on. Pinning to the
-documented version avoids the compatibility patches that newer Lazarus releases would
-require.
+Lazarus 2.2.2 with FPC 3.2.2 — the versions the upstream README specifies. Pinning to
+them avoids the compatibility patches newer Lazarus releases would need.
+
+They are **not** obtained the way the README describes, because that route no longer
+works from a script. Every SourceForge download host redirects to
+`downloads.sourceforge.net`, which now answers non-browser clients with a Cloudflare
+"Just a moment…" challenge and HTTP 403. That happens on GitHub runners and on ordinary
+machines, across every mirror host, with browser-like headers, and through the
+`/download` interstitial. There is no header combination that gets past it.
+
+`install-toolchain.ps1` therefore assembles the same toolchain from hosts that are
+reachable:
+
+- **FPC 3.2.2** — native `i386-win32` plus the `x86_64-win64` cross compiler, from
+  `downloads.freepascal.org`, which serves plain HTTP with no bot wall.
+- **Lazarus 2.2.2** — source from its GitLab tag, then `make lazbuild`.
+
+`lazbuild` is built as a native i386-win32 binary and drives 64-bit builds through the
+cross compiler, which is how the official "32-bit Lazarus + cross-x86_64 add-on"
+combination has always worked.
+
+One wrinkle worth remembering if you touch that script: FPC's fpcmake-generated
+Makefiles switch to Unix mode when they find a Unix shell on `PATH`, and the runner
+image ships Git's `sh.exe`. `PATH` is trimmed to FPC plus Windows for the duration of
+the `make` run.
 
 Two details in `build.ps1` are easy to get wrong when editing the target table:
 
@@ -64,9 +85,9 @@ Two details in `build.ps1` are easy to get wrong when editing the target table:
 - Output filenames embed `$(TargetCPU)`, so the two architectures of one project do not
   overwrite each other.
 
-`install-lazarus.ps1` validates each download as a real PE image before installing it.
-SourceForge answers some request shapes with an HTML interstitial page instead of the
-file, and an installer that is secretly HTML fails in a confusing way much later.
+Every download is checked for plausible size and correct magic bytes before it is used.
+A blocked or rate-limited host hands back an HTML error page with a 200, and an
+"installer" that is secretly HTML fails much later and much more confusingly.
 
 ## Running a build
 
