@@ -8,12 +8,29 @@
 
 Cheat Engine is a development environment focused on modding games and applications for personal use.
 
+> ### About this fork
+>
+> This is an unofficial fork that adds a GitHub Actions pipeline compiling Cheat Engine
+> from source and publishing the result as a release, because the download page on
+> cheatengine.org has been broken for months and the community mirror it falls back to
+> wraps the executable in a third-party installer signed by an unrelated publisher.
+>
+> **The builds published here are unsigned, unsupported, and not endorsed by the Cheat
+> Engine developer.** They also omit DBVM and the Visual Studio components. See
+> [docs/CI-BUILDS.md](docs/CI-BUILDS.md) for what is and is not included, how to verify
+> a download, and how to cut a build yourself.
+>
+> No changes are made to Cheat Engine itself — everything added lives in `.github/` and
+> `docs/CI-BUILDS.md`. For an official, developer-signed build, use the upstream
+> releases linked below.
+
 
 # Download
 
-  * **[Latest Version](https://github.com/cheat-engine/cheat-engine/releases/latest)**
+  * **[Community CI builds from this fork](../../releases/latest)** (unsigned — read the note above)
+  * **[Latest official version](https://github.com/cheat-engine/cheat-engine/releases/latest)**
 
-[Older versions](https://github.com/cheat-engine/cheat-engine/releases)
+[Older official versions](https://github.com/cheat-engine/cheat-engine/releases)
 
 
 # Links

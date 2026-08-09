@@ -1,0 +1,119 @@
+name: Build
+
+# Compiles the Lazarus/FreePascal parts of Cheat Engine on a Windows runner and
+# uploads the portable distribution as a workflow artifact.
+#
+# This workflow is also called by release.yml, so the artifact attached to a release
+# is produced by exactly the same steps as an ordinary CI build.
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches: [master]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+    inputs:
+      build_all:
+        description: 'Force a full recompile of every unit (--build-all)'
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version string used in the archive name'
+        type: string
+        required: true
+      build_all:
+        type: boolean
+        default: false
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  LAZARUS_VERSION: '2.2.2'
+  FPC_VERSION: '3.2.2'
+  LAZARUS_DIR: 'C:\lazarus'
+  INSTALLER_CACHE: 'C:\lazarus-installers'
+
+jobs:
+  build:
+    name: Windows / Lazarus + FPC
+    runs-on: windows-latest
+    timeout-minutes: 150
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Work out the version string
+        id: version
+        shell: pwsh
+        run: |
+          $version = '${{ inputs.version }}'
+          if (-not $version) {
+            # Ordinary CI build: short SHA is enough to tell two builds apart.
+            $version = "$(git rev-parse --short HEAD)"
+          }
+          "value=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "version = $version"
+
+      # The two installers are ~257 MB combined and SourceForge is the only source,
+      # so caching them keeps the build off the critical path of a flaky mirror.
+      - name: Restore cached Lazarus installers
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.INSTALLER_CACHE }}
+          key: lazarus-installers-${{ env.LAZARUS_VERSION }}-fpc-${{ env.FPC_VERSION }}-win64
+
+      - name: Install Lazarus and the i386 cross compiler
+        shell: pwsh
+        run: |
+          .github\build\install-lazarus.ps1 `
+            -LazarusVersion '${{ env.LAZARUS_VERSION }}' `
+            -FpcVersion '${{ env.FPC_VERSION }}' `
+            -InstallDir '${{ env.LAZARUS_DIR }}' `
+            -CacheDir '${{ env.INSTALLER_CACHE }}'
+
+      - name: Build
+        shell: pwsh
+        run: |
+          $buildAll = '${{ inputs.build_all }}' -eq 'true'
+          if ($buildAll) {
+            .github\build\build.ps1 -LazarusDir '${{ env.LAZARUS_DIR }}' -BuildAll
+          } else {
+            .github\build\build.ps1 -LazarusDir '${{ env.LAZARUS_DIR }}'
+          }
+
+      - name: Package the portable distribution
+        id: package
+        shell: pwsh
+        run: .github\build\package.ps1 -Version '${{ steps.version.outputs.value }}'
+
+      - name: Upload the portable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: cheat-engine-portable-${{ steps.version.outputs.value }}
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      # Compiler transcripts are the only way to diagnose a failed target after the
+      # runner is gone, so keep them whether or not the build succeeded.
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ steps.version.outputs.value }}
+          path: build-logs/
+          if-no-files-found: warn
+          retention-days: 14

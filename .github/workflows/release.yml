@@ -1,0 +1,140 @@
+name: Release
+
+# Tag the repository and this publishes a GitHub Release carrying the compiled
+# portable build, so there is always a working download that does not depend on
+# cheatengine.org being up.
+#
+#   git tag ci-7.5-001 && git push origin ci-7.5-001
+#
+# The build itself is delegated to build.yml, so a release artifact is byte-for-byte
+# the product of the same steps that run on every push.
+
+on:
+  push:
+    tags:
+      - 'ci-*'
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version label for the release (e.g. ci-7.5-001)'
+        type: string
+        required: true
+      prerelease:
+        description: 'Mark the release as a pre-release'
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.pick.outputs.version }}
+    steps:
+      - id: pick
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            version='${{ inputs.version }}'
+          else
+            version='${{ github.ref_name }}'
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Releasing as: $version"
+
+  build:
+    name: Build
+    needs: resolve
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ needs.resolve.outputs.version }}
+      # Releases are worth the extra wall-clock: a clean full recompile removes any
+      # doubt about stale units leaking into a published binary.
+      build_all: true
+
+  publish:
+    name: Publish release
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Download the build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cheat-engine-portable-${{ needs.resolve.outputs.version }}
+          path: dist
+
+      - name: Show what will be published
+        run: ls -lh dist/
+
+      - name: Compose the release notes
+        id: notes
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          {
+            echo "Unofficial community build of Cheat Engine, compiled by GitHub Actions from the source in this fork."
+            echo
+            echo "Built from commit \`${GITHUB_SHA}\` with Lazarus 2.2.2 / FPC 3.2.2 — the toolchain the upstream README specifies."
+            echo
+            echo "## Why this exists"
+            echo
+            echo "The download page on cheatengine.org has been serving an error for months, and the community mirror linked from its fallback page wraps the executable in a third-party installer signed by an unrelated publisher. This release is compiled straight from upstream source so there is a download whose provenance you can actually check."
+            echo
+            echo "## Read this before running it"
+            echo
+            echo "- **These binaries are unsigned.** No code-signing certificate is involved, so SmartScreen will warn you and some antivirus products will flag them. That is expected for an unsigned memory-scanning tool; it is not evidence the build is clean, and neither is this note — verify the checksums below and read the workflow logs if you want proof of how it was made."
+            echo "- **No DBVM.** The kernel-level debugger driver needs a separate build and a self-signed driver, which this pipeline does not do. Memory scanning, pointer scanning, the disassembler and the Lua engine all work without it."
+            echo "- **No Visual Studio components.** The .NET, Mono, Java (cejvmti) and tcc pieces come from .sln projects that this workflow does not build; the DLLs already committed to the repository are included as-is."
+            echo "- This is not an official release and is not supported by the Cheat Engine developer. Report problems here, not on the upstream forum."
+            echo
+            echo "## Verifying the download"
+            echo
+            echo '```'
+            echo "sha256sum -c SHA256SUMS.txt"
+            echo '```'
+            echo
+            echo "\`SHA256SUMS.txt\` covers the archive and every executable inside it."
+            echo
+            echo "## Contents"
+            echo
+            echo "\`Cheat Engine.exe\` is the launcher; it picks the 32- or 64-bit build for you. Extract the whole archive and keep the folder together — the Lua scripts, language files and helper DLLs next to the executables are all required."
+            echo
+            echo "---"
+            echo
+            echo "Upstream project: <https://github.com/cheat-engine/cheat-engine> · original author: Eric Heijnen (Dark Byte)."
+          } > release-notes.md
+          cat release-notes.md
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          set -euo pipefail
+          args=(
+            "$VERSION"
+            --title "Cheat Engine (community CI build $VERSION)"
+            --notes-file release-notes.md
+            --target "$GITHUB_SHA"
+          )
+          if [ "${PRERELEASE:-false}" = "true" ]; then
+            args+=(--prerelease)
+          fi
+          # Recreate rather than fail when a tag is re-published deliberately.
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "Release $VERSION already exists; replacing its assets."
+            gh release delete "$VERSION" --yes
+          fi
+          gh release create "${args[@]}" dist/*
