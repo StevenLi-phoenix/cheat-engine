@@ -200,6 +200,14 @@ Write-Step 'Verifying the toolchain'
 & $lazbuild --version
 Write-Info "lazbuild: $lazbuild"
 
+# A lazbuild built from a source tree has no configuration yet, so its idea of the
+# Lazarus directory is the empty string and every invocation dies with
+# 'invalid Lazarus directory "": directory lcl not found'. Passing it explicitly on
+# each call is more predictable than depending on a config file appearing.
+$fpcExe = Join-Path $fpcBin 'fpc.exe'
+$commonArgs = @("--lazarusdir=$LazarusDir")
+if (Test-Path -LiteralPath $fpcExe) { $commonArgs += "--compiler=$fpcExe" }
+
 # lazbuild resolves a project's package dependencies through registered package links.
 # A source tree has none registered, so add the ones Cheat Engine asks for.
 Write-Step 'Registering package links'
@@ -224,7 +232,7 @@ foreach ($relative in $packageLinks) {
     $lpk = Join-Path $LazarusDir $relative
     if (Test-Path -LiteralPath $lpk) {
         Write-Info "link: $relative"
-        & $lazbuild --add-package-link $lpk 2>&1 | Out-Null
+        & $lazbuild @commonArgs --add-package-link $lpk 2>&1 | Out-Null
     }
     else {
         Write-Info "missing (skipped): $relative"
@@ -232,8 +240,9 @@ foreach ($relative in $packageLinks) {
 }
 
 if ($env:GITHUB_ENV) {
-    "FPC_BIN=$fpcBin"       | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-    "LAZBUILD=$lazbuild"    | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    "FPC_BIN=$fpcBin"    | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    "FPC_EXE=$fpcExe"    | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    "LAZBUILD=$lazbuild" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 }
 
 Write-Step 'Toolchain ready'

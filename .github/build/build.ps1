@@ -24,6 +24,9 @@
 [CmdletBinding()]
 param(
     [string]$LazarusDir = 'C:\lazarus',
+    # Path to fpc.exe. Defaults to whatever install-toolchain.ps1 exported, then to a
+    # search under C:\FPC.
+    [string]$Compiler   = '',
     [string]$LogDir     = 'build-logs',
     # Force a full recompile of every unit (slower, but immune to stale .ppu files).
     [switch]$BuildAll,
@@ -40,6 +43,27 @@ $lazbuild = Join-Path $LazarusDir 'lazbuild.exe'
 
 if (-not (Test-Path -LiteralPath $lazbuild)) { throw "lazbuild.exe not found at $lazbuild" }
 if (-not (Test-Path -LiteralPath $ceRoot))   { throw "'Cheat Engine' folder not found under $repoRoot" }
+
+if (-not $Compiler) {
+    $Compiler = $env:FPC_EXE
+    if (-not $Compiler -or -not (Test-Path -LiteralPath $Compiler)) {
+        $found = Get-ChildItem -Path 'C:\FPC' -Recurse -Filter 'fpc.exe' -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        $Compiler = if ($found) { $found.FullName } else { '' }
+    }
+}
+
+# A lazbuild built from source has no stored configuration, so without --lazarusdir
+# every call fails with 'invalid Lazarus directory ""'. Passed on every invocation
+# rather than relying on a config file having been written earlier.
+$commonArgs = @("--lazarusdir=$LazarusDir")
+if ($Compiler) {
+    $commonArgs += "--compiler=$Compiler"
+    Write-Host "Compiler: $Compiler"
+}
+else {
+    Write-Host 'Compiler: not located; falling back to whatever lazbuild finds' -ForegroundColor Yellow
+}
 
 # Name              Project (relative to "Cheat Engine")   BuildMode              Cpu      Os      Required
 $targets = @(
@@ -86,7 +110,7 @@ foreach ($target in $selected) {
         continue
     }
 
-    $arguments = @("--cpu=$($target.Cpu)", "--os=$($target.Os)", '--widgetset=win32')
+    $arguments = $commonArgs + @("--cpu=$($target.Cpu)", "--os=$($target.Os)", '--widgetset=win32')
     if ($target.Mode) { $arguments += "--build-mode=$($target.Mode)" }
     if ($BuildAll)    { $arguments += '--build-all' }
     $arguments += $lpiPath
